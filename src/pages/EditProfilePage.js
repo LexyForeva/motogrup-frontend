@@ -10,6 +10,7 @@ export default function EditProfilePage() {
   const navigate = useNavigate();
   const { user } = useSelector(s => s.auth);
   const [loading, setLoading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -49,8 +50,26 @@ export default function EditProfilePage() {
         motorcycle: user.motorcycle || { brand: '', model: '', year: '', plate: '', type: '' },
         emergencyContact: user.emergencyContact || { name: '', phone: '', relation: '' }
       });
+      setAvatarPreview(user.avatar);
     }
   }, [user]);
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 2 * 1024 * 1024) {
+      dispatch(addToast({ type: 'error', message: 'Fotoğraf 2MB\'dan küçük olmalı!' }));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result);
+      setFormData(prev => ({ ...prev, avatar: reader.result }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -103,6 +122,48 @@ export default function EditProfilePage() {
       </div>
 
       <form onSubmit={handleSubmit}>
+        {/* Profil Fotoğrafı */}
+        <div className="card" style={{ padding: 20, marginBottom: 16, textAlign: 'center' }}>
+          <div style={{ position: 'relative', width: 120, height: 120, margin: '0 auto 16px' }}>
+            <div style={{ 
+              width: 120, 
+              height: 120, 
+              borderRadius: '50%', 
+              background: avatarPreview ? `url(${avatarPreview})` : 'var(--gradient-orange)', 
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              fontSize: 48,
+              fontWeight: 900,
+              color: 'white',
+              fontFamily: 'var(--font-display)',
+              border: '4px solid var(--accent-orange)'
+            }}>
+              {!avatarPreview && `${formData.firstName?.[0] || 'M'}${formData.lastName?.[0] || 'Y'}`}
+            </div>
+            <label style={{
+              position: 'absolute',
+              bottom: 0,
+              right: 0,
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: 'var(--accent-orange)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              border: '3px solid var(--bg-primary)'
+            }}>
+              <i className="fas fa-camera" style={{ color: 'white', fontSize: 14 }} />
+              <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
+            </label>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Profil fotoğrafını değiştirmek için tıkla (Max 2MB)</p>
+        </div>
+
         {/* Kişisel Bilgiler */}
         <div className="card" style={{ padding: 20, marginBottom: 16 }}>
           <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: 16, color: 'var(--accent-orange)' }}>
