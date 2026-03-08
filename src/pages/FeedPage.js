@@ -121,9 +121,6 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true);
   const [postContent, setPostContent] = useState('');
   const [posting, setPosting] = useState(false);
-  const [mediaFiles, setMediaFiles] = useState([]);
-  const [mediaPreview, setMediaPreview] = useState([]);
-  const [uploading, setUploading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -143,62 +140,17 @@ export default function FeedPage() {
 
   const handlePost = async (e) => {
     e.preventDefault();
-    if (!postContent.trim() && mediaFiles.length === 0) return;
+    if (!postContent.trim()) return;
     setPosting(true);
     try {
-      let imageUrls = [];
-      
-      // Upload media files if any
-      if (mediaFiles.length > 0) {
-        setUploading(true);
-        const formData = new FormData();
-        mediaFiles.forEach(file => formData.append('media', file));
-        
-        const { data: uploadData } = await api.post('/posts/upload-media', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        imageUrls = uploadData.urls;
-        setUploading(false);
-      }
-
-      const { data } = await api.post('/posts', { 
-        content: postContent,
-        images: imageUrls
-      });
+      const { data } = await api.post('/posts', { content: postContent });
       setPosts(prev => [data.data, ...prev]);
       setPostContent('');
-      setMediaFiles([]);
-      setMediaPreview([]);
       dispatch(addToast({ type: 'success', message: 'Gönderi paylaşıldı!' }));
     } catch { 
       dispatch(addToast({ type: 'error', message: 'Gönderi paylaşılamadı.' })); 
     }
     setPosting(false);
-    setUploading(false);
-  };
-
-  const handleMediaSelect = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length + mediaFiles.length > 4) {
-      dispatch(addToast({ type: 'error', message: 'En fazla 4 medya dosyası yükleyebilirsiniz.' }));
-      return;
-    }
-
-    setMediaFiles(prev => [...prev, ...files]);
-    
-    // Create previews
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setMediaPreview(prev => [...prev, { url: reader.result, type: file.type }]);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removeMedia = (index) => {
-    setMediaFiles(prev => prev.filter((_, i) => i !== index));
-    setMediaPreview(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleLike = async (postId) => {
@@ -290,44 +242,9 @@ export default function FeedPage() {
               placeholder="Paylaşmak istediğin bir şey var mı? 🏍️"
               value={postContent} onChange={e => setPostContent(e.target.value)} />
             
-            {/* Media Preview */}
-            {mediaPreview.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: mediaPreview.length > 1 ? '1fr 1fr' : '1fr', gap: 8, marginTop: 12 }}>
-                {mediaPreview.map((media, i) => (
-                  <div key={i} style={{ position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                    {media.type.startsWith('video/') ? (
-                      <video src={media.url} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} controls />
-                    ) : (
-                      <img src={media.url} alt="" style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} />
-                    )}
-                    <button type="button" onClick={() => removeMedia(i)} style={{
-                      position: 'absolute', top: 8, right: 8, width: 28, height: 28,
-                      borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none',
-                      color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', fontSize: 14
-                    }}>
-                      <i className="fas fa-times" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <label style={{ cursor: 'pointer', padding: '8px 12px', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text-muted)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <i className="fas fa-image" />
-                  <span style={{ fontSize: 13 }}>Fotoğraf/Video</span>
-                  <input type="file" accept="image/*,video/*" multiple onChange={handleMediaSelect} style={{ display: 'none' }} disabled={mediaFiles.length >= 4} />
-                </label>
-                {mediaFiles.length > 0 && (
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>
-                    {mediaFiles.length}/4
-                  </span>
-                )}
-              </div>
-              <button type="submit" className="btn btn-primary" disabled={(!postContent.trim() && mediaFiles.length === 0) || posting || uploading} style={{ padding: '8px 20px' }}>
-                {uploading ? <><i className="fas fa-spinner fa-spin" /> Yükleniyor...</> : posting ? <><i className="fas fa-spinner fa-spin" /> Paylaşılıyor...</> : <><i className="fas fa-paper-plane" /> Paylaş</>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+              <button type="submit" className="btn btn-primary" disabled={!postContent.trim() || posting} style={{ padding: '8px 20px' }}>
+                {posting ? <><i className="fas fa-spinner fa-spin" /> Paylaşılıyor...</> : <><i className="fas fa-paper-plane" /> Paylaş</>}
               </button>
             </div>
           </form>

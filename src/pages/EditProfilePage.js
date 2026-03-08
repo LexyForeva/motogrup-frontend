@@ -1,199 +1,259 @@
 import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { updateProfile } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
-
-const INTERESTS = ['Tur', 'Yarış', 'Off-road', 'Cruise', 'Bakım', 'Modifikasyon'];
-const MOTO_TYPES = ['Cruiser', 'Sport', 'Touring', 'Enduro', 'Scooter', 'Naked', 'Adventure', 'Chopper', 'Diğer'];
-const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', '0+', '0-'];
-const EXP_LEVELS = ['Başlangıç', 'Orta', 'İleri', 'Uzman'];
-
-const Section = ({ title, icon, children }) => (
-  <div className="card" style={{ padding: 24, marginBottom: 20 }}>
-    <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 18, marginBottom: 20, color: 'var(--accent-orange)', display: 'flex', alignItems: 'center', gap: 10 }}>
-      <i className={`fas ${icon}`} />{title}
-    </div>
-    {children}
-  </div>
-);
-
-const Field = ({ label, children, half }) => (
-  <div style={{ marginBottom: 16, gridColumn: half ? 'span 1' : undefined }}>
-    <label style={{ display: 'block', fontFamily: 'var(--font-heading)', fontWeight: 600, marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)' }}>{label}</label>
-    {children}
-  </div>
-);
+import { setUser } from '../store/slices/authSlice';
+import api from '../utils/api';
 
 export default function EditProfilePage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector(s => s.auth);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    firstName: '', lastName: '', nickname: '', bio: '',
-    birthDate: '', phone: '', bloodType: '',
-    motorcycle: { brand: '', model: '', plate: '', year: '', type: '' },
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    nickname: '',
+    bio: '',
+    phone: '',
+    bloodType: '',
     experienceLevel: '',
     interests: [],
     instagram: '',
-    emergencyContact: { name: '', phone: '', relation: '' },
+    motorcycle: {
+      brand: '',
+      model: '',
+      year: '',
+      plate: '',
+      type: ''
+    },
+    emergencyContact: {
+      name: '',
+      phone: '',
+      relation: ''
+    }
   });
 
   useEffect(() => {
     if (user) {
-      setForm({
+      setFormData({
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         nickname: user.nickname || '',
         bio: user.bio || '',
-        birthDate: user.birthDate ? user.birthDate.split('T')[0] : '',
         phone: user.phone || '',
         bloodType: user.bloodType || '',
-        motorcycle: { brand: user.motorcycle?.brand || '', model: user.motorcycle?.model || '', plate: user.motorcycle?.plate || '', year: user.motorcycle?.year || '', type: user.motorcycle?.type || '' },
         experienceLevel: user.experienceLevel || '',
         interests: user.interests || [],
         instagram: user.instagram || '',
-        emergencyContact: { name: user.emergencyContact?.name || '', phone: user.emergencyContact?.phone || '', relation: user.emergencyContact?.relation || '' },
+        motorcycle: user.motorcycle || { brand: '', model: '', year: '', plate: '', type: '' },
+        emergencyContact: user.emergencyContact || { name: '', phone: '', relation: '' }
       });
     }
   }, [user]);
 
-  const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
-  const setMoto = (key, value) => setForm(f => ({ ...f, motorcycle: { ...f.motorcycle, [key]: value } }));
-  const setEmergency = (key, value) => setForm(f => ({ ...f, emergencyContact: { ...f.emergencyContact, [key]: value } }));
-  const toggleInterest = (interest) => setForm(f => ({
-    ...f,
-    interests: f.interests.includes(interest) ? f.interests.filter(i => i !== interest) : [...f.interests, interest]
-  }));
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      setFormData(prev => ({
+        ...prev,
+        [parent]: { ...prev[parent], [child]: value }
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleInterestToggle = (interest) => {
+    setFormData(prev => ({
+      ...prev,
+      interests: prev.interests.includes(interest)
+        ? prev.interests.filter(i => i !== interest)
+        : [...prev.interests, interest]
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const result = await dispatch(updateProfile(form));
-    if (!result.error) {
-      dispatch(addToast({ type: 'success', title: 'Kaydedildi!', message: 'Profil başarıyla güncellendi.' }));
-      navigate('/profile');
-    } else {
-      dispatch(addToast({ type: 'error', message: 'Güncelleme başarısız.' }));
+    try {
+      const { data } = await api.put('/users/profile', formData);
+      dispatch(setUser(data.data));
+      dispatch(addToast({ type: 'success', message: 'Profil güncellendi!' }));
+      navigate('/profile/' + user._id);
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: err.response?.data?.message || 'Güncelleme başarısız.' }));
     }
     setLoading(false);
   };
 
+  const interestOptions = ['Tur', 'Yarış', 'Off-road', 'Cruise', 'Modifikasyon', 'Fotoğrafçılık'];
+  const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', '0+', '0-'];
+  const experienceLevels = ['Başlangıç', 'Orta', 'İleri', 'Uzman'];
+  const motorcycleTypes = ['Naked', 'Sport', 'Cruiser', 'Adventure', 'Touring', 'Off-road', 'Scooter'];
+
   return (
-    <form onSubmit={handleSubmit} className="animate-fade">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 900, letterSpacing: 2 }}>
-            PROFİL <span style={{ color: 'var(--accent-orange)' }}>DÜZENLE</span>
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Bilgilerini güncel tut</p>
-        </div>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? <><i className="fas fa-spinner fa-spin" /> Kaydediliyor...</> : <><i className="fas fa-save" /> Kaydet</>}
-        </button>
+    <div style={{ maxWidth: 800, margin: '0 auto' }} className="animate-fade">
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 900, letterSpacing: 2 }}>
+          PROFİL <span style={{ color: 'var(--accent-orange)' }}>DÜZENLE</span>
+        </h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Bilgilerini güncelle</p>
       </div>
 
-      <Section title="Temel Bilgiler" icon="fa-user">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Field label="Ad *"><input className="input" value={form.firstName} onChange={e => set('firstName', e.target.value)} required /></Field>
-          <Field label="Soyad *"><input className="input" value={form.lastName} onChange={e => set('lastName', e.target.value)} required /></Field>
-          <Field label="Takma Ad">
-            <input className="input" value={form.nickname} onChange={e => set('nickname', e.target.value.toUpperCase())} placeholder="TURBO" />
-          </Field>
-          <Field label="Instagram">
-            <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14 }}>@</span>
-              <input className="input" style={{ paddingLeft: 32 }} value={form.instagram} onChange={e => set('instagram', e.target.value)} placeholder="kullanici_adi" />
+      <form onSubmit={handleSubmit}>
+        {/* Kişisel Bilgiler */}
+        <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: 16, color: 'var(--accent-orange)' }}>
+            <i className="fas fa-user" style={{ marginRight: 8 }} />
+            Kişisel Bilgiler
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label className="label">Ad</label>
+              <input className="input" name="firstName" value={formData.firstName} onChange={handleChange} required />
             </div>
-          </Field>
-        </div>
-        <Field label="Hakkında">
-          <textarea className="input" style={{ resize: 'none', minHeight: 80 }} value={form.bio} onChange={e => set('bio', e.target.value)} placeholder="Kendinden kısaca bahset..." maxLength={300} />
-          <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{form.bio.length}/300</div>
-        </Field>
-      </Section>
-
-      <Section title="Kişisel Bilgiler" icon="fa-id-card">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-          <Field label="Doğum Tarihi"><input type="date" className="input" value={form.birthDate} onChange={e => set('birthDate', e.target.value)} /></Field>
-          <Field label="Telefon"><input className="input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="0532 xxx xxxx" /></Field>
-          <Field label="Kan Grubu">
-            <select className="input" value={form.bloodType} onChange={e => set('bloodType', e.target.value)}>
-              <option value="">Seçin...</option>
-              {BLOOD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </Field>
-        </div>
-      </Section>
-
-      <Section title="Motor Bilgileri" icon="fa-motorcycle">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-          <Field label="Marka"><input className="input" value={form.motorcycle.brand} onChange={e => setMoto('brand', e.target.value)} placeholder="Honda, Kawasaki..." /></Field>
-          <Field label="Model"><input className="input" value={form.motorcycle.model} onChange={e => setMoto('model', e.target.value)} placeholder="CB650R, Z900..." /></Field>
-          <Field label="Plaka"><input className="input" value={form.motorcycle.plate} onChange={e => setMoto('plate', e.target.value)} placeholder="34 ABC 123" /></Field>
-          <Field label="Model Yılı"><input type="number" className="input" value={form.motorcycle.year} onChange={e => setMoto('year', e.target.value)} placeholder="2023" min="1950" max="2030" /></Field>
-          <div style={{ gridColumn: 'span 2' }}>
-            <Field label="Motor Tipi">
-              <select className="input" value={form.motorcycle.type} onChange={e => setMoto('type', e.target.value)}>
-                <option value="">Seçin...</option>
-                {MOTO_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            <div>
+              <label className="label">Soyad</label>
+              <input className="input" name="lastName" value={formData.lastName} onChange={handleChange} required />
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label className="label">Takma Ad</label>
+            <input className="input" name="nickname" value={formData.nickname} onChange={handleChange} placeholder="Örn: TURBO" />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label className="label">Biyografi</label>
+            <textarea className="input" name="bio" value={formData.bio} onChange={handleChange} rows={3} placeholder="Kendinden bahset..." style={{ resize: 'none' }} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+            <div>
+              <label className="label">Telefon</label>
+              <input className="input" name="phone" value={formData.phone} onChange={handleChange} placeholder="0532 123 4567" />
+            </div>
+            <div>
+              <label className="label">Kan Grubu</label>
+              <select className="input" name="bloodType" value={formData.bloodType} onChange={handleChange}>
+                <option value="">Seç</option>
+                {bloodTypes.map(bt => <option key={bt} value={bt}>{bt}</option>)}
               </select>
-            </Field>
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label className="label">Instagram</label>
+            <input className="input" name="instagram" value={formData.instagram} onChange={handleChange} placeholder="@kullaniciadi" />
           </div>
         </div>
-      </Section>
 
-      <Section title="Deneyim & İlgi Alanları" icon="fa-star">
-        <Field label="Deneyim Seviyesi">
-          <div style={{ display: 'flex', gap: 10 }}>
-            {EXP_LEVELS.map(level => (
-              <button key={level} type="button" onClick={() => set('experienceLevel', level)}
-                style={{
-                  flex: 1, padding: '10px 12px', borderRadius: 'var(--radius)', border: 'none', cursor: 'pointer',
-                  background: form.experienceLevel === level ? 'var(--gradient-orange)' : 'var(--bg-secondary)',
-                  color: form.experienceLevel === level ? 'white' : 'var(--text-secondary)',
-                  fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, transition: 'all 0.2s'
-                }}>
-                {level}
-              </button>
-            ))}
+        {/* Motor Bilgileri */}
+        <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: 16, color: 'var(--accent-orange)' }}>
+            <i className="fas fa-motorcycle" style={{ marginRight: 8 }} />
+            Motor Bilgileri
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label className="label">Marka</label>
+              <input className="input" name="motorcycle.brand" value={formData.motorcycle.brand} onChange={handleChange} placeholder="Örn: Yamaha" />
+            </div>
+            <div>
+              <label className="label">Model</label>
+              <input className="input" name="motorcycle.model" value={formData.motorcycle.model} onChange={handleChange} placeholder="Örn: MT-07" />
+            </div>
           </div>
-        </Field>
-        <Field label="İlgi Alanları">
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {INTERESTS.map(interest => (
-              <button key={interest} type="button" onClick={() => toggleInterest(interest)}
-                style={{
-                  padding: '8px 16px', borderRadius: 20, border: `1px solid ${form.interests.includes(interest) ? 'var(--accent-orange)' : 'var(--border)'}`,
-                  background: form.interests.includes(interest) ? 'rgba(255,107,0,0.15)' : 'transparent',
-                  color: form.interests.includes(interest) ? 'var(--accent-orange)' : 'var(--text-secondary)',
-                  cursor: 'pointer', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 14, transition: 'all 0.2s'
-                }}>
-                {interest}
-              </button>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 12 }}>
+            <div>
+              <label className="label">Yıl</label>
+              <input className="input" type="number" name="motorcycle.year" value={formData.motorcycle.year} onChange={handleChange} placeholder="2023" />
+            </div>
+            <div>
+              <label className="label">Plaka</label>
+              <input className="input" name="motorcycle.plate" value={formData.motorcycle.plate} onChange={handleChange} placeholder="34 ABC 123" />
+            </div>
+            <div>
+              <label className="label">Tip</label>
+              <select className="input" name="motorcycle.type" value={formData.motorcycle.type} onChange={handleChange}>
+                <option value="">Seç</option>
+                {motorcycleTypes.map(mt => <option key={mt} value={mt}>{mt}</option>)}
+              </select>
+            </div>
           </div>
-        </Field>
-      </Section>
-
-      <Section title="Acil Durum İletişimi" icon="fa-phone-alt">
-        <div style={{ background: 'rgba(229,53,53,0.05)', border: '1px solid rgba(229,53,53,0.2)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 16 }}>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>⚠️ Bu bilgiler sadece acil durumlarda kullanılır.</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-          <Field label="Kişi Adı"><input className="input" value={form.emergencyContact.name} onChange={e => setEmergency('name', e.target.value)} placeholder="Ahmet Yılmaz" /></Field>
-          <Field label="Telefon"><input className="input" value={form.emergencyContact.phone} onChange={e => setEmergency('phone', e.target.value)} placeholder="0532 xxx xxxx" /></Field>
-          <Field label="Yakınlık"><input className="input" value={form.emergencyContact.relation} onChange={e => setEmergency('relation', e.target.value)} placeholder="Eş, Anne, Baba..." /></Field>
-        </div>
-      </Section>
 
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={() => navigate('/profile')} className="btn btn-ghost">İptal</button>
-        <button type="submit" className="btn btn-primary" disabled={loading} style={{ padding: '12px 32px' }}>
-          {loading ? <><i className="fas fa-spinner fa-spin" /> Kaydediliyor...</> : <><i className="fas fa-save" /> Değişiklikleri Kaydet</>}
-        </button>
-      </div>
-    </form>
+        {/* Deneyim ve İlgi Alanları */}
+        <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: 16, color: 'var(--accent-orange)' }}>
+            <i className="fas fa-star" style={{ marginRight: 8 }} />
+            Deneyim ve İlgi Alanları
+          </h3>
+          <div>
+            <label className="label">Deneyim Seviyesi</label>
+            <select className="input" name="experienceLevel" value={formData.experienceLevel} onChange={handleChange}>
+              <option value="">Seç</option>
+              {experienceLevels.map(el => <option key={el} value={el}>{el}</option>)}
+            </select>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label className="label">İlgi Alanları</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+              {interestOptions.map(interest => (
+                <button
+                  key={interest}
+                  type="button"
+                  onClick={() => handleInterestToggle(interest)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius)',
+                    border: 'none',
+                    background: formData.interests.includes(interest) ? 'var(--gradient-orange)' : 'var(--bg-secondary)',
+                    color: formData.interests.includes(interest) ? 'white' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-heading)',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {interest}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Acil Durum İletişim */}
+        <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: 16, color: 'var(--danger)' }}>
+            <i className="fas fa-phone-alt" style={{ marginRight: 8 }} />
+            Acil Durum İletişim
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label className="label">İsim</label>
+              <input className="input" name="emergencyContact.name" value={formData.emergencyContact.name} onChange={handleChange} placeholder="Yakınınızın adı" />
+            </div>
+            <div>
+              <label className="label">Yakınlık</label>
+              <input className="input" name="emergencyContact.relation" value={formData.emergencyContact.relation} onChange={handleChange} placeholder="Örn: Eş, Anne, Kardeş" />
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label className="label">Telefon</label>
+            <input className="input" name="emergencyContact.phone" value={formData.emergencyContact.phone} onChange={handleChange} placeholder="0532 123 4567" />
+          </div>
+        </div>
+
+        {/* Butonlar */}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={() => navigate('/profile/' + user._id)} className="btn" style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
+            İptal
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? <><i className="fas fa-spinner fa-spin" /> Kaydediliyor...</> : <><i className="fas fa-save" /> Kaydet</>}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
